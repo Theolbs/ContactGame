@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Contact !</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #f59e0b;
+      --text: #f8fafc;
+      --success: #22c55e;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 1rem; }
+    
+    .container { background-color: var(--card); border-radius: 1rem; width: 100%; max-width: 400px; padding: 1.5rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; }
+    h1 { color: var(--accent); margin-bottom: 1rem; font-size: 2rem; }
+    
+    .scoreboard { display: flex; justify-content: space-between; margin-bottom: 1.5rem; background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 0.5rem; }
+    .team-box { flex: 1; }
+    .team-name { font-weight: bold; font-size: 0.9rem; }
+    .team-step { color: var(--accent); font-size: 1.2rem; font-weight: bold; }
+    .active-team { border-bottom: 3px solid var(--accent); }
+
+    .card { background: #334155; padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 1.5rem; }
+    .word-display { font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 1rem 0; color: #fff; }
+    .hidden { display: none !important; }
+
+    .btn { background: var(--accent); color: #000; font-weight: bold; border: none; padding: 0.8rem 1.5rem; font-size: 1rem; border-radius: 0.5rem; width: 100%; cursor: pointer; margin-top: 0.5rem; }
+    .btn:active { transform: scale(0.98); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    
+    .stats { font-size: 0.9rem; color: #94a3b8; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>CONTACT !</h1>
+
+  <!-- Tableau des scores -->
+  <div class="scoreboard">
+    <div id="team0-box" class="team-box active-team">
+      <div class="team-name">Les Sphinx</div>
+      <div id="team0-step" class="team-step">Niveau 1</div>
+    </div>
+    <div id="team1-box" class="team-box">
+      <div class="team-name">Les Pharaons</div>
+      <div id="team1-step" class="team-step">Niveau 1</div>
+    </div>
+  </div>
+
+  <!-- Écran de transition entre les tours -->
+  <div id="screen-start" class="card">
+    <h2 id="current-team-title">Au tour de l'équipe</h2>
+    <p class="stats" id="target-info">Objectif : 3 / 5 mots</p>
+    <button class="btn" onclick="startTurn()">Commencer la manche</button>
+  </div>
+
+  <!-- Écran de jeu -->
+  <div id="screen-game" class="card hidden">
+    <div class="stats" id="word-progress">Mot 1 / 5</div>
+    <div class="stats" id="score-progress">Réussis : 0</div>
+    
+    <div id="word-box" class="hidden">
+      <div class="word-display" id="current-word">MOT</div>
+      <div style="display: flex; gap: 0.5rem;">
+        <button class="btn btn-success" onclick="validateWord(true)">Trouvé</button>
+        <button class="btn btn-danger" onclick="validateWord(false)">Râté</button>
+      </div>
+    </div>
+    
+    <button id="btn-reveal" class="btn" onclick="revealWord()">Afficher le mot</button>
+  </div>
+
+  <!-- Écran de fin de manche -->
+  <div id="screen-result" class="card hidden">
+    <h2 id="result-title">Résultat</h2>
+    <p id="result-desc" style="margin: 1rem 0;"></p>
+    <button class="btn" onclick="nextTurn()">Équipe suivante</button>
+  </div>
+</div>
+
+<script>
+  // Dictionnaire de mots de base
+  const dictionary = ["SOLEIL", "BANQUISE", "CHAMEAU", "PYRAMIDE", "BATEAU", "AVION", "CHOCOLAT", "GUITARE", "TÉLÉPHONE", "VALISE", "CIGARETTE", "MIROIR", "FANTÔME", "BOUTEILLE", "JARDIN", "VAMPIR", "FUSÉE", "CIRQUE", "ORAGE", "PARAPLUIE"];
+
+  // État des équipes (étape 1 au départ : 3 réussites sur 5 mots)
+  const teams = [
+    { name: "Les Sphinx", step: 1, target: 3, total: 5 },
+    { name: "Les Pharaons", step: 1, target: 3, total: 5 }
+  ];
+
+  let currentTeamIdx = 0;
+  let currentWordIdx = 0;
+  let successCount = 0;
+  let currentWords = [];
+
+  function updateHeader() {
+    document.getElementById("team0-step").textContent = `Niveau ${teams[0].step}`;
+    document.getElementById("team1-step").textContent = `Niveau ${teams[1].step}`;
+    
+    document.getElementById("team0-box").classList.toggle("active-team", currentTeamIdx === 0);
+    document.getElementById("team1-box").classList.toggle("active-team", currentTeamIdx === 1);
+  }
+
+  function setupStartScreen() {
+    updateHeader();
+    const team = teams[currentTeamIdx];
+    document.getElementById("current-team-title").textContent = `Au tour de : ${team.name}`;
+    document.getElementById("target-info").textContent = `Objectif : ${team.target} sur ${team.total} mots`;
+    
+    document.getElementById("screen-start").classList.remove("hidden");
+    document.getElementById("screen-game").classList.add("hidden");
+    document.getElementById("screen-result").classList.add("hidden");
+  }
+
+  function startTurn() {
+    const team = teams[currentTeamIdx];
+    currentWordIdx = 0;
+    successCount = 0;
+
+    // Sélection aléatoire des mots
+    const shuffled = [...dictionary].sort(() => 0.5 - Math.random());
+    currentWords = shuffled.slice(0, team.total);
+
+    document.getElementById("screen-start").classList.add("hidden");
+    document.getElementById("screen-game").classList.remove("hidden");
+    
+    updateWordScreen();
+  }
+
+  function updateWordScreen() {
+    const team = teams[currentTeamIdx];
+    document.getElementById("word-progress").textContent = `Mot ${currentWordIdx + 1} / ${team.total}`;
+    document.getElementById("score-progress").textContent = `Réussis : ${successCount}`;
+    
+    document.getElementById("word-box").classList.add("hidden");
+    document.getElementById("btn-reveal").classList.remove("hidden");
+  }
+
+  function revealWord() {
+    document.getElementById("current-word").textContent = currentWords[currentWordIdx];
+    document.getElementById("word-box").classList.remove("hidden");
+    document.getElementById("btn-reveal").classList.add("hidden");
+  }
+
+  function validateWord(success) {
+    if (success) successCount++;
+    currentWordIdx++;
+
+    const team = teams[currentTeamIdx];
+    if (currentWordIdx < team.total) {
+      updateWordScreen();
+    } else {
+      endTurn();
+    }
+  }
+
+  function endTurn() {
+    const team = teams[currentTeamIdx];
+    const isSuccess = successCount >= team.target;
+    
+    document.getElementById("screen-game").classList.add("hidden");
+    document.getElementById("screen-result").classList.remove("hidden");
+
+    const resultTitle = document.getElementById("result-title");
+    const resultDesc = document.getElementById("result-desc");
+
+    if (isSuccess) {
+      resultTitle.textContent = "Victoire ! 🎉";
+      resultDesc.textContent = `${team.name} a validé ${successCount}/${team.total} mots et passe au niveau supérieur !`;
+      
+      // Progression
+      team.step++;
+      team.target++;
+      team.total++;
+    } else {
+      resultTitle.textContent = "Échec ! ❌";
+      resultDesc.textContent = `${team.name} n'a réussi que ${successCount}/${team.total} mots (objectif : ${team.target}).`;
+      
+      // Régression (sans descendre sous l'étape 1)
+      if (team.step > 1) {
+        team.step--;
+        team.target--;
+        team.total--;
+      }
+    }
+  }
+
+  function nextTurn() {
+    currentTeamIdx = currentTeamIdx === 0 ? 1 : 0;
+    setupStartScreen();
+  }
+
+  // Lancement au démarrage
+  setupStartScreen();
+</script>
+</body>
+</html>
