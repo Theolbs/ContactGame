@@ -27,11 +27,21 @@
     .active-team { border-bottom: 3px solid var(--accent); }
 
     .card { background: #334155; padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 1.5rem; }
-    .word-display { font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 1rem 0; color: #fff; }
+    .word-display { font-size: 1.8rem; font-weight: bold; letter-spacing: 2px; margin: 1rem 0; color: #fff; min-height: 2.2rem; }
     .hidden { display: none !important; }
+
+    .timer-box { font-size: 2rem; font-weight: bold; color: var(--accent); margin: 0.5rem 0 1rem 0; font-variant-numeric: tabular-nums; }
+    .timer-ended { color: var(--danger) !important; animation: pulse 1s infinite; }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
 
     .btn { background: var(--accent); color: #000; font-weight: bold; border: none; padding: 0.8rem 1.5rem; font-size: 1rem; border-radius: 0.5rem; width: 100%; cursor: pointer; margin-top: 0.5rem; }
     .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-success { background: var(--success); color: #fff; }
     .btn-danger { background: var(--danger); color: #fff; }
     
@@ -55,15 +65,16 @@
     </div>
   </div>
 
-  <!-- Écran de transition entre les tours -->
+  <!-- Écran de transition -->
   <div id="screen-start" class="card">
     <h2 id="current-team-title">Au tour de l'équipe</h2>
     <p class="stats" id="target-info">Objectif : 3 / 5 mots</p>
-    <button class="btn" onclick="startTurn()">Commencer la manche</button>
+    <button class="btn" id="btn-start" onclick="startTurn()" disabled>Chargement des mots...</button>
   </div>
 
   <!-- Écran de jeu -->
   <div id="screen-game" class="card hidden">
+    <div class="timer-box" id="timer-display">01:00</div>
     <div class="stats" id="word-progress">Mot 1 / 5</div>
     <div class="stats" id="score-progress">Réussis : 0</div>
     
@@ -75,7 +86,7 @@
       </div>
     </div>
     
-    <button id="btn-reveal" class="btn" onclick="revealWord()">Afficher le mot</button>
+    <button id="btn-reveal" class="btn" onclick="revealFirstWord()">Afficher le mot</button>
   </div>
 
   <!-- Écran de fin de manche -->
@@ -87,10 +98,8 @@
 </div>
 
 <script>
-  // Dictionnaire de mots de base
-  const dictionary = ["SOLEIL", "BANQUISE", "CHAMEAU", "PYRAMIDE", "BATEAU", "AVION", "CHOCOLAT", "GUITARE", "TÉLÉPHONE", "VALISE", "CIGARETTE", "MIROIR", "FANTÔME", "BOUTEILLE", "JARDIN", "VAMPIR", "FUSÉE", "CIRQUE", "ORAGE", "PARAPLUIE"];
+  let dictionary = [];
 
-  // État des équipes (étape 1 au départ : 3 réussites sur 5 mots)
   const teams = [
     { name: "Les Sphinx", step: 1, target: 3, total: 5 },
     { name: "Les Pharaons", step: 1, target: 3, total: 5 }
@@ -100,6 +109,23 @@
   let currentWordIdx = 0;
   let successCount = 0;
   let currentWords = [];
+  
+  let timerInterval = null;
+  let timeLeft = 60;
+
+  // Charger le dictionnaire depuis le fichier JSON externe
+  async function loadDictionary() {
+    try {
+      const response = await fetch('words.json');
+      dictionary = await response.json();
+      const startBtn = document.getElementById("btn-start");
+      startBtn.disabled = false;
+      startBtn.textContent = "Commencer la manche";
+    } catch (error) {
+      console.error("Erreur au chargement du dictionnaire:", error);
+      document.getElementById("btn-start").textContent = "Erreur de chargement";
+    }
+  }
 
   function updateHeader() {
     document.getElementById("team0-step").textContent = `Niveau ${teams[0].step}`;
@@ -110,6 +136,7 @@
   }
 
   function setupStartScreen() {
+    stopTimer();
     updateHeader();
     const team = teams[currentTeamIdx];
     document.getElementById("current-team-title").textContent = `Au tour de : ${team.name}`;
@@ -121,33 +148,63 @@
   }
 
   function startTurn() {
+    if (dictionary.length === 0) return;
     const team = teams[currentTeamIdx];
     currentWordIdx = 0;
     successCount = 0;
 
-    // Sélection aléatoire des mots
     const shuffled = [...dictionary].sort(() => 0.5 - Math.random());
     currentWords = shuffled.slice(0, team.total);
+
+    timeLeft = 60;
+    const timerEl = document.getElementById("timer-display");
+    timerEl.textContent = "01:00";
+    timerEl.classList.remove("timer-ended");
 
     document.getElementById("screen-start").classList.add("hidden");
     document.getElementById("screen-game").classList.remove("hidden");
     
-    updateWordScreen();
-  }
-
-  function updateWordScreen() {
-    const team = teams[currentTeamIdx];
-    document.getElementById("word-progress").textContent = `Mot ${currentWordIdx + 1} / ${team.total}`;
-    document.getElementById("score-progress").textContent = `Réussis : ${successCount}`;
-    
+    const teamData = teams[currentTeamIdx];
+    document.getElementById("word-progress").textContent = `Mot 1 / ${teamData.total}`;
+    document.getElementById("score-progress").textContent = `Réussis : 0`;
     document.getElementById("word-box").classList.add("hidden");
     document.getElementById("btn-reveal").classList.remove("hidden");
   }
 
-  function revealWord() {
-    document.getElementById("current-word").textContent = currentWords[currentWordIdx];
-    document.getElementById("word-box").classList.remove("hidden");
+  function startTimer() {
+    stopTimer();
+    const timerEl = document.getElementById("timer-display");
+    
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      
+      const mins = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+      const secs = String(timeLeft % 60).padStart(2, '0');
+      timerEl.textContent = `${mins}:${secs}`;
+
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        timerEl.classList.add("timer-ended");
+      }
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+  }
+
+  function revealFirstWord() {
+    startTimer();
     document.getElementById("btn-reveal").classList.add("hidden");
+    document.getElementById("word-box").classList.remove("hidden");
+    showCurrentWord();
+  }
+
+  function showCurrentWord() {
+    const team = teams[currentTeamIdx];
+    document.getElementById("word-progress").textContent = `Mot ${currentWordIdx + 1} / ${team.total}`;
+    document.getElementById("score-progress").textContent = `Réussis : ${successCount}`;
+    document.getElementById("current-word").textContent = currentWords[currentWordIdx];
   }
 
   function validateWord(success) {
@@ -156,13 +213,14 @@
 
     const team = teams[currentTeamIdx];
     if (currentWordIdx < team.total) {
-      updateWordScreen();
+      showCurrentWord();
     } else {
       endTurn();
     }
   }
 
   function endTurn() {
+    stopTimer();
     const team = teams[currentTeamIdx];
     const isSuccess = successCount >= team.target;
     
@@ -176,7 +234,6 @@
       resultTitle.textContent = "Victoire ! 🎉";
       resultDesc.textContent = `${team.name} a validé ${successCount}/${team.total} mots et passe au niveau supérieur !`;
       
-      // Progression
       team.step++;
       team.target++;
       team.total++;
@@ -184,7 +241,6 @@
       resultTitle.textContent = "Échec ! ❌";
       resultDesc.textContent = `${team.name} n'a réussi que ${successCount}/${team.total} mots (objectif : ${team.target}).`;
       
-      // Régression (sans descendre sous l'étape 1)
       if (team.step > 1) {
         team.step--;
         team.target--;
@@ -198,7 +254,8 @@
     setupStartScreen();
   }
 
-  // Lancement au démarrage
+  // Initialisation au chargement de la page
+  loadDictionary();
   setupStartScreen();
 </script>
 </body>
