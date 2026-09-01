@@ -13,4 +13,4 @@ Jeu made in maison pour le jeu contact
 200 verbes
 200 adverbes
 500 noms communs
-100 métiers
+300 métiers
