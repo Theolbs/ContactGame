@@ -9,3 +9,5 @@ Jeu made in maison pouur le jeu contact
 30 fleurs
 100 arbres
 200 sports ou activités physiqe
+200 adjectifs
+200 verbes
